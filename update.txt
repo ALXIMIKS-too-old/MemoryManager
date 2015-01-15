@@ -1,0 +1,76 @@
+1. spinlock.h 
+-Исправлена функция sleep (была в микросекундах)
+-Исправлена инициализация std::atomic_flag (в VS 2013 - проблемы с ATOMIC_FLAG_INIT)
+-Изменены названия методов на lock-unlock для возможности использования в std::lock_guard
+
+
+2. spinlocked_stack.h 
+-Исправлено небезопасная рповерка пустоты стека в spinlocked_stack::update_condition
+теперь реализуется через атомарную переменную состояния, модификация которой происходит все spicLock-а
+-В адаптере stack произведена замена аллокатора dequeue на vector
+-Реализован еще один вариант стека - list с мелкогранулярными блокироваками
+Результат сравниния - на 30% медленее (предположительно из-за new delete без резервирования памяти) 
+
+3. PODptr.h
+-к полю size_t m_size Добавлен квалификатор volatile
+(что дало учет возможных изминений значения под дейстием иных потоков
+и ускорения быстродейстия по сравнению с использованием atomic.)
+
+4. PODcontroller.h
+-улучшена система поиска участка памяти необходимого размера после возвращения неудачи
+-изменена логика условия для запуска проверки на возможность слияния двух соседних свободных участков памяти
+
+5. MemoryManager.h
+-добавнино выравние для виделяемой памяти
+ в виду возможных проблем при работе с атомарными типами на невыровненой памяти
+-добавлено безопасное выдиление памяти для пулла в контрукторе MemoryManager (с помощью unique_ptr)
+-добавлени дополнительные проверки верности работы при вызове MemoryManager::deallocate
+
+
+6. main.cpp
+-улучшена безопасность 
+при освобождении памяти new std::promise<void>[THREADs] через std::unique_ptr<std::promise<void>[]>
+- немнго изменены параметры тестов (в основном увиличив нагрузку)
+
+
+
+В результате удалось (но не совсем) избежать возникновения изключений
+за последних 70 запусков на VS было около 5 исключений, 
+при чем касались все они неверного типа объекта для удаления.
+Именно по этому подозреваю проблему с ABA, возникающую на потокобепасном стеке.
+
+как вариант уменьшения возможных проблем с АBA c минимальными затратами 
+вижу замену стека на потокобезопасную очередь,
+что даст как разгрузку единого узла обращения (возможный выиграш производительности)
+так и уменьшения вероятности ABA (если это была она)
+
+
+
+min_alloc_size:  1
+max_alloc_size:  35
+pool_size:  200
+test_MemoryManager_alloc_dealloc:
+
+mem_manager nullptr
+MemoryManager thread - 20 time: 452
+MemoryManager thread - 19 time: 296
+MemoryManager thread - 18 time: 344
+MemoryManager thread - 17 time: 296
+MemoryManager thread - 16 time: 312
+MemoryManager thread - 15 time: 296
+MemoryManager thread - 14 time: 234
+MemoryManager thread - 13 time: 234
+MemoryManager thread - 12 time: 234
+MemoryManager thread - 11 time: 188
+MemoryManager thread - 10 time: 202
+MemoryManager thread - 9 time: 156
+MemoryManager thread - 8 time: 125
+MemoryManager thread - 7 time: 172
+MemoryManager thread - 6 time: 93
+MemoryManager thread - 5 time: 125
+MemoryManager thread - 4 time: 78
+MemoryManager thread - 3 time: 63
+MemoryManager thread - 2 time: 31
+MemoryManager thread - 1 time: 15
+The End
+
